@@ -1,0 +1,29 @@
+{
+  "name": "journal",
+  "version": "0.0.1",
+  "description": "A journaling tool for event sourced designs that is adapter driven and can work with multiple data stores.",
+  "main": "journal.js",
+  "engines": {
+    "node": ">=4.0.0"
+  },
+  "scripts": {
+    "test": "npm test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/nuorder/event-source-journal.git"
+  },
+  "keywords": [
+    "event",
+    "sourcing",
+    "journal",
+    "ddd"
+  ],
+  "author": "Jesse Pate <jessedpate@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "bluebird": "^2.10.2",
+    "lodash": "^3.10.1",
+    "mongoose": "^4.1.9"
+  }
+}
