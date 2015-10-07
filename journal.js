@@ -6,6 +6,16 @@ var _ = require('lodash');
 const privateData = new WeakMap();
 const validAdapters = ['mongodb', 'sql', 'memory'];
 
+function JournalError(code, message, args) {
+  this.name = 'JournalError';
+  this.arguments = args;
+  this.message = message || 'An error occurred';
+  this.stack = (new Error()).stack;
+}
+
+JournalError.prototype = Object.create(Error.prototype);
+JournalError.prototype.constructor = JournalError;
+
 /*
  * A Journal is an object meant to act as a manager for Event Sourcing. It can
  * be used with multiple datastores, including MongoDB, MySQL, Amazon Aurora, or
@@ -47,6 +57,7 @@ class Journal {
         if(!this.initialized) {
             this.createClient = Promise.coroutine(this.createClient);
             this.destroyClient = Promise.coroutine(this.destroyClient);
+            this.createEvent = Promise.coroutine(this.createEvent);
         }
         
         return this;
@@ -116,6 +127,78 @@ class Journal {
         
         return this;
     }
+    
+    /*
+     * Create a new event and store it in the database.
+     *
+     * @method createEvent
+     *
+     * @required {String}  eventName
+     * @required {String}  refId
+     * @optional {Object}  eventData
+     * @optional {Number}  currentVersion
+     *
+     * @return {Event}
+     *
+     */
+    
+    *createEvent(eventName, refId, eventData, currentVersion) {
+        if(!this.initialized) {
+            throw new JournalError(500, "Journal has not been initialized");
+        }
+        else if(!eventName) {
+            throw new JournalError(400, "Missing eventName", {eventName: eventName});
+        }
+        else if(typeof eventName !== 'string') {
+            throw new JournalError(400, "Invalid eventName", {eventName: eventName});
+        }
+        else if(currentVersion !== undefined && typeof currentVersion !== 'number') {
+            throw new JournalError(400, "currentVersion must be a number", {currentVersion: currentVersion});
+        }
+        else if(currentVersion !== undefined && currentVersion < 0) {
+            throw new JournalError(400, "currentVersion must be a positive number", {currentVersion: currentVersion});
+        }
+        else if(currentVersion !== undefined && parseInt(currentVersion) !== currentVersion) {
+            throw new JournalError(400, "currentVersion must be an integer", {currentVersion: currentVersion});
+        }        
+        else if(eventData === 'function') {
+            throw new JournalError(400, "eventData cannot be a function", {eventData: eventData});
+        }
+        else if(!Array.isArray(eventData) && typeof eventData === 'object' && !_.isPlainObject(eventData)) {
+            throw new JournalError(400, "eventData cannot be a custom object", {eventData: eventData});
+        }
+
+        let x = yield privateData.get(this).adapter.createEvent(eventName, refId, eventData, currentVersion);
+        console.log(x);
+        return x;
+    }
+    
+    /*
+     * Get events for a given refId. 
+     *
+     * @method getEvents
+     *
+     * @required {String}  refId
+     * @optional {Number}  fromVersion
+     * @optional {Number}  toVersion
+     *
+     * @return [{Events}]
+     *
+     */
+    
+    *getEvents(refId, fromVersion, toVersion) {
+        if(!this.initialized) {
+            throw new JournalError(500, "Journal has not been initialized");
+        }
+        else if(fromVersion !== undefined && typeof fromVersion !== 'number') {
+            throw new JournalError(400, "fromVersion must be a number", {fromVersion: fromVersion});
+        }
+        else if(toVersion !== undefined && typeof toVersion !== 'number') {
+            throw new JournalError(400, "toVersion must be a number", {fromVersion: toVersion});
+        }
+
+        return yield privateData.get(this).adapter.getEvents(refId, fromVersion, toVersion);    
+    }      
 }
 
 exports = module.exports = Journal;

@@ -5,6 +5,16 @@ var setupDataModel = require('./mongodb-lib/model.js');
 
 var _ = require('lodash');
 
+function AdapterError(code, message, args) {
+  this.name = 'AdapterError';
+  this.arguments = args;
+  this.message = message || 'An error occurred';
+  this.stack = (new Error()).stack;
+}
+
+AdapterError.prototype = Object.create(Error.prototype);
+AdapterError.prototype.constructor = AdapterError;
+
 /*
  * An adapter for the Journal class to use MongoDB as a datastore.
  * Note that this requires MongoDB version 2.6.x or greater.
@@ -17,7 +27,20 @@ class MongoDBAdapter {
     constructor(options) {
         this.initializePublicMethods();
     }
+    
+    static _isValidObjectId(value) {
+        var valid = false;
+        var regex = /^[a-f0-9]{24}$/i;
 
+        value = value && typeof value.toString === 'function' ? value.toString() : value;
+
+        if (value) {
+            valid = regex.test(value);
+        }
+
+        return valid;        
+    }
+    
     /*
      * Wrap class methods in Bluebird couroutines as we cannot define dynamic methods when
      * creating a class.
@@ -29,8 +52,8 @@ class MongoDBAdapter {
      */
 
     initializePublicMethods() {
-        this.createDatabaseConnection = Promise.coroutine(this.createDatabaseConnection);
-        this.closeDatabaseConnection = Promise.coroutine(this.closeDatabaseConnection);
+        this.createEvent = Promise.coroutine(this.createEvent);
+        this.getLatestVersionForRef = Promise.coroutine(this.getLatestVersionForRef);
         
         return this;
     }
@@ -47,11 +70,11 @@ class MongoDBAdapter {
      *
      */
     
-    *createDatabaseConnection(dbConnectionOptions) {
+    createDatabaseConnection(dbConnectionOptions) {
         var defaults = {
             hosts: 'localhost:27018',
             dbName: 'event_source',
-            collectionName: 'event_source',
+            collectionName: 'events',
             
             server: {
                 socketOptions: {
@@ -70,14 +93,20 @@ class MongoDBAdapter {
         var connectionString = `mongodb://${config.hosts}/${config.dbName}`;
 
         this.connection = mongoose.createConnection(connectionString, config);
-        this.dataModel = setupDataModel(this.connection, config.collectionName);
+        this.Event = setupDataModel(this.connection, config.collectionName);
         
         return new Promise((resolve, reject) => {
             this.connection.on('open', () => {
                 resolve(this);
             });
             
-            this.connection.on('error', reject);
+            this.connection.on('error', (error) => {
+                reject({
+                    code: 502,
+                    message: error.message,
+                    originalError: error
+                });
+            });
         });
     }
 
@@ -90,11 +119,72 @@ class MongoDBAdapter {
      *
      */
     
-    *closeDatabaseConnection() {
+    closeDatabaseConnection() {
         mongoose.disconnect();
         
         return this;
     }
+    
+    /*
+     * Create a new event and store it in the database.
+     *
+     * @method createEvent
+     *
+     * @required {String}  eventName
+     * @required {String}  refId
+     * @optional {Object}  eventData
+     * @optional {Number}  currentVersion
+     *
+     * @return {Event}
+     *
+     */
+    
+    *createEvent(eventName, refId, eventData, currentVersion) {
+        if(!this.constructor._isValidObjectId(refId)) {
+            throw new JournalError(400, "Invalid refId", {refId: refId});
+        }
+
+        if(!currentVersion) {
+            currentVersion = yield this.getLatestVersionForRef(refId);
+        }
+
+        var newEvent = new this.Event({
+            _id: new mongoose.Types.ObjectId(),
+            version: currentVersion + 1,
+            ref: refId,
+            event: eventName,
+            created_on: new Date()
+        });
+        
+        if(eventData) {
+            newEvent.payload = eventData;
+        }
+        
+        try {
+            yield newEvent.save()
+        }
+        catch(error) {
+            if(error.message && error.message.match(/E11000/i)) {
+                let latestVersion = yield this.getLatestVersionForRef(refId);
+                throw new AdapterError(409, "version conflict", {
+                    currentVersion: currentVersion,
+                    latestVersion: latestVersion
+                });
+            }
+            else {
+                throw new AdapterError(400, "adapter error", {
+                    originalError: error
+                });
+            }
+        }
+        return newEvent.toObject();
+    }
+    
+    *getLatestVersionForRef(refId) {
+        var events = yield this.Event.find({ ref: refId }, { version: 1 }).sort({version: -1}).limit(1).exec();
+        return events[0] ? events[0].version : 0;
+    }
+    
 }
 
 exports = module.exports = MongoDBAdapter;

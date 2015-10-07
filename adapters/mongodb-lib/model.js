@@ -6,7 +6,7 @@ exports = module.exports = function(connection, collectionName) {
         _id: {type: ObjectId, auto: true},
         versionKey: false,
         strict: true,
-        collection: collectionName || 'event_source',
+        collection: collectionName || 'events',
         autoIndex: false,
         safe: {
             j: 1//, w: 'majority'
@@ -21,10 +21,12 @@ exports = module.exports = function(connection, collectionName) {
 
         event: { type: String, required: true },
         
+        payload: { type: Schema.Types.Mixed, required: false },
+        
         created_on: { type: Date, default: Date.now }
     }, options);
 
-    return connection.model(collectionName || 'event_source', schema);
+    return connection.model(collectionName || 'events', schema);
 };
 
 // Indexes:
