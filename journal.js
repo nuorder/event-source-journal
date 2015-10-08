@@ -1,5 +1,5 @@
 "use strict";
-//var ServiceDiscovery = require('./lib/service-discovery.js');
+
 var Promise = require('bluebird');
 var _ = require('lodash');
 
@@ -57,7 +57,8 @@ class Journal {
         if(!this.initialized) {
             this.createClient = Promise.coroutine(this.createClient);
             this.destroyClient = Promise.coroutine(this.destroyClient);
-            this.createEvent = Promise.coroutine(this.createEvent);
+            this.createEventForRef = Promise.coroutine(this.createEventForRef);
+            this.getEventsForRef = Promise.coroutine(this.getEventsForRef);
         }
         
         return this;
@@ -131,18 +132,19 @@ class Journal {
     /*
      * Create a new event and store it in the database.
      *
-     * @method createEvent
+     * @method createEventForRef
      *
      * @required {String}  eventName
      * @required {String}  refId
      * @optional {Object}  eventData
+     * @optional {String}  userId
      * @optional {Number}  currentVersion
      *
      * @return {Event}
      *
      */
     
-    *createEvent(eventName, refId, eventData, currentVersion) {
+    *createEventForRef(eventName, refId, eventData, userId, currentVersion) {
         if(!this.initialized) {
             throw new JournalError(500, "Journal has not been initialized");
         }
@@ -168,15 +170,13 @@ class Journal {
             throw new JournalError(400, "eventData cannot be a custom object", {eventData: eventData});
         }
 
-        let x = yield privateData.get(this).adapter.createEvent(eventName, refId, eventData, currentVersion);
-        console.log(x);
-        return x;
+        return yield privateData.get(this).adapter.createEventForRef(eventName, refId, eventData, userId, currentVersion);
     }
     
     /*
-     * Get events for a given refId. 
+     * Get events for a given refId. May optionally specify a fromVersion and a toVersion (inclusive).
      *
-     * @method getEvents
+     * @method getEventsForRef
      *
      * @required {String}  refId
      * @optional {Number}  fromVersion
@@ -186,7 +186,7 @@ class Journal {
      *
      */
     
-    *getEvents(refId, fromVersion, toVersion) {
+    *getEventsForRef(refId, fromVersion, toVersion) {
         if(!this.initialized) {
             throw new JournalError(500, "Journal has not been initialized");
         }
@@ -194,10 +194,13 @@ class Journal {
             throw new JournalError(400, "fromVersion must be a number", {fromVersion: fromVersion});
         }
         else if(toVersion !== undefined && typeof toVersion !== 'number') {
-            throw new JournalError(400, "toVersion must be a number", {fromVersion: toVersion});
+            throw new JournalError(400, "toVersion must be a number", {toVersion: toVersion});
+        }
+        else if(toVersion !== undefined && fromVersion !== undefined && fromVersion > toVersion) {
+            throw new JournalError(400, "toVersion is less than fromVersion", {toVersion: toVersion, fromVersion: fromVersion});
         }
 
-        return yield privateData.get(this).adapter.getEvents(refId, fromVersion, toVersion);    
+        return yield privateData.get(this).adapter.getEventsForRef(refId, fromVersion, toVersion);
     }      
 }
 

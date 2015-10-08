@@ -23,7 +23,8 @@ exports = module.exports = function(connection, collectionName) {
         
         payload: { type: Schema.Types.Mixed, required: false },
         
-        created_on: { type: Date, default: Date.now }
+        initiated_by: { type: String, required: false },
+        created_on: { type: Date, default: Date.now },
     }, options);
 
     return connection.model(collectionName || 'events', schema);

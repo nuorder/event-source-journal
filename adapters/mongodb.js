@@ -52,7 +52,7 @@ class MongoDBAdapter {
      */
 
     initializePublicMethods() {
-        this.createEvent = Promise.coroutine(this.createEvent);
+        this.createEventForRef = Promise.coroutine(this.createEventForRef);
         this.getLatestVersionForRef = Promise.coroutine(this.getLatestVersionForRef);
         
         return this;
@@ -128,18 +128,19 @@ class MongoDBAdapter {
     /*
      * Create a new event and store it in the database.
      *
-     * @method createEvent
+     * @method createEventForRef
      *
      * @required {String}  eventName
      * @required {String}  refId
      * @optional {Object}  eventData
+     * @optional {String}  userId
      * @optional {Number}  currentVersion
      *
      * @return {Event}
      *
      */
     
-    *createEvent(eventName, refId, eventData, currentVersion) {
+    *createEventForRef(eventName, refId, eventData, userId, currentVersion) {
         if(!this.constructor._isValidObjectId(refId)) {
             throw new JournalError(400, "Invalid refId", {refId: refId});
         }
@@ -158,6 +159,9 @@ class MongoDBAdapter {
         
         if(eventData) {
             newEvent.payload = eventData;
+        }
+        if(userId) {
+            newEvent.initiated_by = userId;
         }
         
         try {
@@ -179,12 +183,50 @@ class MongoDBAdapter {
         }
         return newEvent.toObject();
     }
-    
+
+    /*
+     * Get the highest version number for a given ref. If no events exists for a ref, will return 0.
+     *
+     * @method getLatestVersionForRef
+     *
+     * @required {String}  refId
+     * @optional {Number}  fromVersion
+     * @optional {Number}  toVersion     
+     *
+     * @return {[Event]}
+     *
+     */
+         
+    getEventsForRef(refId, fromVersion, toVersion) {
+        var query = this.Event.find({ ref: refId });
+        var events;
+        
+        if(fromVersion) {
+            query.gte('version', fromVersion);
+        }
+        
+        if(toVersion) {
+            query.lte('version', toVersion);
+        }
+        
+        return query.sort({version: 1}).exec();
+    }  
+        
+    /*
+     * Get the highest version number for a given ref. If no events exists for a ref, will return 0.
+     *
+     * @method getLatestVersionForRef
+     *
+     * @required {String}  refId
+     *
+     * @return {Number}
+     *
+     */
+         
     *getLatestVersionForRef(refId) {
         var events = yield this.Event.find({ ref: refId }, { version: 1 }).sort({version: -1}).limit(1).exec();
         return events[0] ? events[0].version : 0;
-    }
-    
+    }  
 }
 
 exports = module.exports = MongoDBAdapter;

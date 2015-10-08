@@ -1,6 +1,6 @@
 {
   "name": "journal",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "A journaling tool for event sourced designs that is adapter driven and can work with multiple data stores.",
   "main": "journal.js",
   "engines": {
@@ -17,7 +17,8 @@
     "event",
     "sourcing",
     "journal",
-    "ddd"
+    "ddd",
+    "audit"
   ],
   "author": "Jesse Pate <jessedpate@gmail.com>",
   "license": "MIT",
