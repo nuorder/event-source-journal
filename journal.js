@@ -79,6 +79,7 @@ class Journal {
     
     *createClient(adapter, dbConnectionOptions) {
         adapter = (adapter || privateData.get(this).config.adapterName).toLowerCase();
+        dbConnectionOptions = dbConnectionOptions || privateData.get(this).config.dbConnectionOptions;
         
         if (validAdapters.indexOf(adapter) === -1) {
             let adapters = validAdapters.join(', ');

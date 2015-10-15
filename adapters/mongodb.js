@@ -142,7 +142,7 @@ class MongoDBAdapter {
     
     *createEventForRef(eventName, refId, eventData, userId, currentVersion) {
         if(!this.constructor._isValidObjectId(refId)) {
-            throw new JournalError(400, "Invalid refId", {refId: refId});
+            throw new AdapterError(400, "Invalid refId", {refId: refId});
         }
 
         if(!currentVersion) {

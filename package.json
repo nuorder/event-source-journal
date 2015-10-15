@@ -1,7 +1,7 @@
 {
-  "name": "journal",
+  "name": "event-source-journal",
   "version": "0.1.0",
-  "description": "A journaling tool for event sourced designs that is adapter driven and can work with multiple data stores.",
+  "description": "A journaling tool for event sourced designs that is adapter driven and can work with multiple data stores. Not yet ready for production use.",
   "main": "journal.js",
   "engines": {
     "node": ">=4.0.0"
@@ -14,6 +14,8 @@
     "url": "git://github.com/nuorder/event-source-journal.git"
   },
   "keywords": [
+    "eventsourcing",
+    "eventstore",
     "event",
     "sourcing",
     "journal",
