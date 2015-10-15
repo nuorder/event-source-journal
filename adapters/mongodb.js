@@ -224,7 +224,7 @@ class MongoDBAdapter {
      */
          
     *getLatestVersionForRef(refId) {
-        var events = yield this.Event.find({ ref: refId }, { version: 1 }).sort({version: -1}).limit(1).exec();
+        var events = yield this.Event.find({ ref: refId }, { version: 1 }).sort({version: -1}).limit(1).lean().exec();
         return events[0] ? events[0].version : 0;
     }  
 }
