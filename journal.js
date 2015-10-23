@@ -4,7 +4,7 @@ var Promise = require('bluebird');
 var _ = require('lodash');
 
 const privateData = new WeakMap();
-const validAdapters = ['mongodb', 'sql', 'memory'];
+const validAdapters = ['mongodb', 'postgresql'];
 
 function JournalError(code, message, args) {
   this.name = 'JournalError';

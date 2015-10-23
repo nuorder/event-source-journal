@@ -185,9 +185,9 @@ class MongoDBAdapter {
     }
 
     /*
-     * Get the highest version number for a given ref. If no events exists for a ref, will return 0.
+     * Get events for a given ref (optionally) between two versions.
      *
-     * @method getLatestVersionForRef
+     * @method getEventsForRef
      *
      * @required {String}  refId
      * @optional {Number}  fromVersion
