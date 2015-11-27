@@ -26,6 +26,10 @@ class PostgresSQLAdapter {
     constructor(options) {
         this.initializePublicMethods();
     }
+    
+    get name() {
+        return "postgresql";
+    }
         
     /*
      * Wrap class methods in Bluebird couroutines as we cannot define dynamic methods when

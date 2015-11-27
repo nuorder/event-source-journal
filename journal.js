@@ -4,13 +4,14 @@ var Promise = require('bluebird');
 var _ = require('lodash');
 
 const privateData = new WeakMap();
-const validAdapters = ['mongodb', 'postgresql'];
+const validAdapters = ['mongodb', 'postgresql', 'memory'];
 
 function JournalError(code, message, args) {
-  this.name = 'JournalError';
-  this.arguments = args;
-  this.message = message || 'An error occurred';
-  this.stack = (new Error()).stack;
+    this.code = code || 500;
+    this.name = 'JournalError';
+    this.arguments = args;
+    this.message = message || 'An error occurred';
+    this.stack = (new Error()).stack;
 }
 
 JournalError.prototype = Object.create(Error.prototype);
@@ -28,7 +29,7 @@ JournalError.prototype.constructor = JournalError;
 class Journal {
     constructor(options) {
         var defaults = {
-            adapterName: 'mongodb',
+            adapterName: 'memory',
             dbConnectionOptions: null
         };
 
@@ -42,6 +43,18 @@ class Journal {
         
         this.initializePublicMethods();
     }
+    
+    get adapter() {
+        return privateData.get(this).adapter;
+    }
+    
+    get adapterName() {
+        return privateData.get(this).config.adapterName;
+    }
+
+    get dbConnectionOptions() {
+        return privateData.get(this).config.dbConnectionOptions;
+    }
 
     /*
      * Wrap class methods in Bluebird couroutines as we cannot define dynamic methods when
@@ -54,12 +67,10 @@ class Journal {
      */
         
     initializePublicMethods() {
-        if(!this.initialized) {
-            this.createClient = Promise.coroutine(this.createClient);
-            this.destroyClient = Promise.coroutine(this.destroyClient);
-            this.createEventForRef = Promise.coroutine(this.createEventForRef);
-            this.getEventsForRef = Promise.coroutine(this.getEventsForRef);
-        }
+        this.createClient = Promise.coroutine(this.createClient);
+        this.destroyClient = Promise.coroutine(this.destroyClient);
+        this.createEventForRef = Promise.coroutine(this.createEventForRef);
+        this.getEventsForRef = Promise.coroutine(this.getEventsForRef);
         
         return this;
     }
@@ -94,12 +105,12 @@ class Journal {
         }
         else {
             let Adapter = require(`./adapters/${adapter}.js`);
+
             try {
                 let connectedAdapter = yield new Adapter().createDatabaseConnection(dbConnectionOptions);
-                
+                                
                 this.initialized = true;
-                this.adapterName = privateData.get(this).config.adapterName;
-                privateData.get(this).adapter = connectedAdapter;            
+                privateData.get(this).adapter = connectedAdapter;
             }
             catch(err) {
                 throw new Error(err.message);
@@ -121,9 +132,8 @@ class Journal {
     
     *destroyClient() {
         if(this.initialized) {
+            this.initialized = false;
             yield privateData.get(this).adapter.closeDatabaseConnection();
-            
-            delete this.adapterName;
             delete privateData.get(this).adapter;
         }
         

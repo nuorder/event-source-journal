@@ -1,13 +1,14 @@
 {
   "name": "event-source-journal",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A journaling tool for event sourced designs that is adapter driven and can work with multiple data stores. Not yet ready for production use.",
   "main": "journal.js",
   "engines": {
     "node": ">=4.0.0"
   },
   "scripts": {
-    "test": "npm test"
+    "test": "NODE_ENV=test mocha --recursive --check-leaks --reporter spec test",
+    "coverage": "NODE_ENV=test istanbul cover _mocha -- test --check-leaks --recursive -R spec && open ./coverage/lcov-report/index.html"
   },
   "repository": {
     "type": "git",
@@ -30,5 +31,10 @@
     "mongoose": "^4.1.9",
     "pg": "^4.4.3",
     "pg-native": "^1.9.0"
+  },
+  "devDependencies": {
+    "mocha": "*",
+    "sinon": "*",
+    "istanbul": "*"
   }
 }

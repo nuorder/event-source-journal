@@ -28,6 +28,10 @@ class MongoDBAdapter {
         this.initializePublicMethods();
     }
     
+    get name() {
+        return "mongodb";
+    }
+        
     static _isValidObjectId(value) {
         var valid = false;
         var regex = /^[a-f0-9]{24}$/i;
