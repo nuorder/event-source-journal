@@ -1,11 +1,20 @@
 "use strict";
 
-var Promise = require('bluebird');
-var _ = require('lodash');
+const Promise = require('bluebird');
+const _ = require('lodash');
 
 const privateData = new WeakMap();
 const validAdapters = ['mongodb', 'postgresql', 'memory'];
 
+/**
+ * An error.
+ *
+ * @constructor JournalError
+ * @param {number} code - The http status code meant associated with the error
+ * @param {string} message - The message describing the error
+ * @param {object} args - Any relevant arguments to be returned to the user/developer
+ *
+ */
 function JournalError(code, message, args) {
     this.code = code || 500;
     this.name = 'JournalError';
@@ -25,29 +34,27 @@ JournalError.prototype.constructor = JournalError;
  * @class Journal
  *
  */
- 
 class Journal {
     constructor(options) {
-        var defaults = {
+        const defaults = {
             adapterName: 'memory',
             dbConnectionOptions: null
         };
 
-        var config = _.merge({}, defaults, options);
-
+        const config = _.merge({}, defaults, options);
         const self = {
             config: config
         };
 
         privateData.set(this, self);
-        
+
         this.initializePublicMethods();
     }
-    
+
     get adapter() {
         return privateData.get(this).adapter;
     }
-    
+
     get adapterName() {
         return privateData.get(this).config.adapterName;
     }
@@ -65,16 +72,16 @@ class Journal {
      * @return {this};
      *
      */
-        
+
     initializePublicMethods() {
         this.createClient = Promise.coroutine(this.createClient);
         this.destroyClient = Promise.coroutine(this.destroyClient);
         this.createEventForRef = Promise.coroutine(this.createEventForRef);
         this.getEventsForRef = Promise.coroutine(this.getEventsForRef);
-        
+
         return this;
     }
-    
+
     /*
      * Instantiate an instance of the specified adapater, and create a connection to it's
      * underlying datastore.
@@ -87,28 +94,30 @@ class Journal {
      * @return {this}
      *
      */
-    
+
     *createClient(adapter, dbConnectionOptions) {
+        let errorMessage;
+
         adapter = (adapter || privateData.get(this).config.adapterName).toLowerCase();
         dbConnectionOptions = dbConnectionOptions || privateData.get(this).config.dbConnectionOptions;
-        
+
         if (validAdapters.indexOf(adapter) === -1) {
-            let adapters = validAdapters.join(', ');
-            let errorMessage = `"${adapter}" is an invalid adapter. Please use one of "${adapters}"`;
-            
+            const adapters = validAdapters.join(', ');
+            errorMessage = `"${adapter}" is an invalid adapter. Please use one of "${adapters}"`;
+
             throw new TypeError(errorMessage);
         }
         else if(privateData.get(this).adapter) {
-            let errorMessage = `"${privateData.get(this).config.adapterName}" has already been initialized"`;
-            
+            errorMessage = `"${privateData.get(this).config.adapterName}" has already been initialized"`;
+
             throw new TypeError(errorMessage);
         }
         else {
-            let Adapter = require(`./adapters/${adapter}.js`);
+            const Adapter = require(`./adapters/${adapter}.js`);
 
             try {
-                let connectedAdapter = yield new Adapter().createDatabaseConnection(dbConnectionOptions);
-                                
+                const connectedAdapter = yield new Adapter().createDatabaseConnection(dbConnectionOptions);
+
                 this.initialized = true;
                 privateData.get(this).adapter = connectedAdapter;
             }
@@ -116,7 +125,7 @@ class Journal {
                 throw new Error(err.message);
             }
         }
-        
+
         return this;
     }
 
@@ -129,17 +138,17 @@ class Journal {
      * @return {this}
      *
      */
-    
+
     *destroyClient() {
         if(this.initialized) {
             this.initialized = false;
             yield privateData.get(this).adapter.closeDatabaseConnection();
             delete privateData.get(this).adapter;
         }
-        
+
         return this;
     }
-    
+
     /*
      * Create a new event and store it in the database.
      *
@@ -154,36 +163,36 @@ class Journal {
      * @return {Event}
      *
      */
-    
+
     *createEventForRef(eventName, refId, eventData, userId, currentVersion) {
         if(!this.initialized) {
             throw new JournalError(500, "Journal has not been initialized");
         }
         else if(!eventName) {
-            throw new JournalError(400, "Missing eventName", {eventName: eventName});
+            throw new JournalError(400, "Missing eventName", { eventName: eventName });
         }
         else if(typeof eventName !== 'string') {
-            throw new JournalError(400, "Invalid eventName", {eventName: eventName});
+            throw new JournalError(400, "Invalid eventName", { eventName: eventName });
         }
         else if(currentVersion !== undefined && typeof currentVersion !== 'number') {
-            throw new JournalError(400, "currentVersion must be a number", {currentVersion: currentVersion});
+            throw new JournalError(400, "currentVersion must be a number", { currentVersion: currentVersion });
         }
         else if(currentVersion !== undefined && currentVersion < 0) {
-            throw new JournalError(400, "currentVersion must be a positive number", {currentVersion: currentVersion});
+            throw new JournalError(400, "currentVersion must be a positive number", { currentVersion: currentVersion });
         }
         else if(currentVersion !== undefined && parseInt(currentVersion) !== currentVersion) {
-            throw new JournalError(400, "currentVersion must be an integer", {currentVersion: currentVersion});
-        }        
-        else if(eventData === 'function') {
-            throw new JournalError(400, "eventData cannot be a function", {eventData: eventData});
+            throw new JournalError(400, "currentVersion must be an integer", { currentVersion: currentVersion });
+        }
+        else if(typeof eventData === 'function') {
+            throw new JournalError(400, "eventData cannot be a function", { eventData: eventData });
         }
         else if(!Array.isArray(eventData) && typeof eventData === 'object' && !_.isPlainObject(eventData)) {
-            throw new JournalError(400, "eventData cannot be a custom object", {eventData: eventData});
+            throw new JournalError(400, "eventData cannot be a custom object", { eventData: eventData });
         }
 
         return yield privateData.get(this).adapter.createEventForRef(eventName, refId, eventData, userId, currentVersion);
     }
-    
+
     /*
      * Get events for a given refId. May optionally specify a fromVersion and a toVersion (inclusive).
      *
@@ -196,23 +205,22 @@ class Journal {
      * @return [{Events}]
      *
      */
-    
     *getEventsForRef(refId, fromVersion, toVersion) {
         if(!this.initialized) {
             throw new JournalError(500, "Journal has not been initialized");
         }
         else if(fromVersion !== undefined && typeof fromVersion !== 'number') {
-            throw new JournalError(400, "fromVersion must be a number", {fromVersion: fromVersion});
+            throw new JournalError(400, "fromVersion must be a number", { fromVersion: fromVersion });
         }
         else if(toVersion !== undefined && typeof toVersion !== 'number') {
-            throw new JournalError(400, "toVersion must be a number", {toVersion: toVersion});
+            throw new JournalError(400, "toVersion must be a number", { toVersion: toVersion });
         }
         else if(toVersion !== undefined && fromVersion !== undefined && fromVersion > toVersion) {
-            throw new JournalError(400, "toVersion is less than fromVersion", {toVersion: toVersion, fromVersion: fromVersion});
+            throw new JournalError(400, "toVersion is less than fromVersion", { toVersion: toVersion, fromVersion: fromVersion });
         }
 
         return yield privateData.get(this).adapter.getEventsForRef(refId, fromVersion, toVersion);
-    }      
+    }
 }
 
 exports = module.exports = Journal;

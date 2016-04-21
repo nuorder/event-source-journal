@@ -1,15 +1,24 @@
 "use strict";
-var Promise = require('bluebird');
-var mongoose = require('mongoose');
-var setupDataModel = require('./mongodb-lib/model.js');
+const Promise = require('bluebird');
+const mongoose = require('mongoose');
+const setupDataModel = require('./mongodb-lib/model.js');
 
-var _ = require('lodash');
+const _ = require('lodash');
 
+/**
+ * An error.
+ *
+ * @constructor AdapterError
+ * @param {number} code - The http status code meant associated with the error
+ * @param {string} message - The message describing the error
+ * @param {object} args - Any relevant arguments to be returned to the user/developer
+ *
+ */
 function AdapterError(code, message, args) {
-  this.name = 'AdapterError';
-  this.arguments = args;
-  this.message = message || 'An error occurred';
-  this.stack = (new Error()).stack;
+    this.name = 'AdapterError';
+    this.arguments = args;
+    this.message = message || 'An error occurred';
+    this.stack = (new Error()).stack;
 }
 
 AdapterError.prototype = Object.create(Error.prototype);
@@ -22,19 +31,19 @@ AdapterError.prototype.constructor = AdapterError;
  * @class MongoDBAdapter
  *
  */
- 
+
 class MongoDBAdapter {
-    constructor(options) {
+    constructor() {
         this.initializePublicMethods();
     }
-    
+
     get name() {
         return "mongodb";
     }
-        
+
     static _isValidObjectId(value) {
-        var valid = false;
-        var regex = /^[a-f0-9]{24}$/i;
+        const regex = /^[a-f0-9]{24}$/i;
+        let valid = false;
 
         value = value && typeof value.toString === 'function' ? value.toString() : value;
 
@@ -42,9 +51,9 @@ class MongoDBAdapter {
             valid = regex.test(value);
         }
 
-        return valid;        
+        return valid;
     }
-    
+
     /*
      * Wrap class methods in Bluebird couroutines as we cannot define dynamic methods when
      * creating a class.
@@ -54,14 +63,13 @@ class MongoDBAdapter {
      * @return {this};
      *
      */
-
     initializePublicMethods() {
         this.createEventForRef = Promise.coroutine(this.createEventForRef);
         this.getLatestVersionForRef = Promise.coroutine(this.getLatestVersionForRef);
-        
+
         return this;
     }
-    
+
     /*
      * Connect to the MongoDB database.
      *
@@ -73,37 +81,36 @@ class MongoDBAdapter {
      * @return {Promise}
      *
      */
-    
     createDatabaseConnection(dbConnectionOptions) {
-        var defaults = {
+        const defaults = {
             hosts: 'localhost:27018',
             dbName: 'event_source',
             collectionName: 'events',
-            
+
             server: {
                 socketOptions: {
                     keepAlive: 1
                 }
             },
-            
+
             replset: {
                 socketOptions: {
                     keepAlive: 1
                 }
             }
         };
-        
-        var config = _.merge({}, defaults, dbConnectionOptions);
-        var connectionString = `mongodb://${config.hosts}/${config.dbName}`;
+
+        const config = _.merge({}, defaults, dbConnectionOptions);
+        const connectionString = `mongodb://${config.hosts}/${config.dbName}`;
 
         this.connection = mongoose.createConnection(connectionString, config);
         this.Event = setupDataModel(this.connection, config.collectionName);
-        
+
         return new Promise((resolve, reject) => {
             this.connection.on('open', () => {
                 resolve(this);
             });
-            
+
             this.connection.on('error', (error) => {
                 reject({
                     code: 502,
@@ -122,13 +129,12 @@ class MongoDBAdapter {
      * @return {this}
      *
      */
-    
     closeDatabaseConnection() {
         mongoose.disconnect();
-        
+
         return this;
     }
-    
+
     /*
      * Create a new event and store it in the database.
      *
@@ -143,37 +149,38 @@ class MongoDBAdapter {
      * @return {Event}
      *
      */
-    
     *createEventForRef(eventName, refId, eventData, userId, currentVersion) {
         if(!this.constructor._isValidObjectId(refId)) {
-            throw new AdapterError(400, "Invalid refId", {refId: refId});
+            throw new AdapterError(400, "Invalid refId", { refId: refId });
         }
 
         if(!currentVersion) {
             currentVersion = yield this.getLatestVersionForRef(refId);
         }
 
-        var newEvent = new this.Event({
+        const newEvent = new this.Event({
             _id: new mongoose.Types.ObjectId(),
             version: currentVersion + 1,
             ref: refId,
             event: eventName,
             created_on: new Date()
         });
-        
+
         if(eventData) {
             newEvent.payload = eventData;
         }
+
         if(userId) {
             newEvent.initiated_by = userId;
         }
-        
+
         try {
-            yield newEvent.save()
+            yield newEvent.save();
         }
         catch(error) {
             if(error.message && error.message.match(/E11000/i)) {
-                let latestVersion = yield this.getLatestVersionForRef(refId);
+                const latestVersion = yield this.getLatestVersionForRef(refId);
+
                 throw new AdapterError(409, "version conflict", {
                     currentVersion: currentVersion,
                     latestVersion: latestVersion
@@ -195,27 +202,29 @@ class MongoDBAdapter {
      *
      * @required {String}  refId
      * @optional {Number}  fromVersion
-     * @optional {Number}  toVersion     
+     * @optional {Number}  toVersion
      *
      * @return {[Event]}
      *
      */
-         
+
     getEventsForRef(refId, fromVersion, toVersion) {
-        var query = this.Event.find({ ref: refId });
-        var events;
-        
+        const query = this.Event.find({ ref: refId });
+        const querySortOrder = {
+            version: 1
+        };
+
         if(fromVersion) {
             query.gte('version', fromVersion);
         }
-        
+
         if(toVersion) {
             query.lte('version', toVersion);
         }
-        
-        return query.sort({version: 1}).exec();
-    }  
-        
+
+        return query.sort(querySortOrder).exec();
+    }
+
     /*
      * Get the highest version number for a given ref. If no events exists for a ref, will return 0.
      *
@@ -226,11 +235,10 @@ class MongoDBAdapter {
      * @return {Number}
      *
      */
-         
     *getLatestVersionForRef(refId) {
-        var events = yield this.Event.find({ ref: refId }, { version: 1 }).sort({version: -1}).limit(1).lean().exec();
+        const events = yield this.Event.find({ ref: refId }, { version: 1 }).sort({ version: -1 }).limit(1).lean().exec();
         return events[0] ? events[0].version : 0;
-    }  
+    }
 }
 
 exports = module.exports = MongoDBAdapter;

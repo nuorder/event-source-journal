@@ -1,13 +1,20 @@
 "use strict";
-var Promise = require('bluebird');
+const Promise = require('bluebird');
 
-var _ = require('lodash');
-
+/**
+ * An error.
+ *
+ * @constructor AdapterError
+ * @param {number} code - The http status code meant associated with the error
+ * @param {string} message - The message describing the error
+ * @param {object} args - Any relevant arguments to be returned to the user/developer
+ *
+ */
 function AdapterError(code, message, args) {
-  this.name = 'AdapterError';
-  this.arguments = args;
-  this.message = message || 'An error occurred';
-  this.stack = (new Error()).stack;
+    this.name = 'AdapterError';
+    this.arguments = args;
+    this.message = message || 'An error occurred';
+    this.stack = (new Error()).stack;
 }
 
 AdapterError.prototype = Object.create(Error.prototype);
@@ -20,17 +27,17 @@ AdapterError.prototype.constructor = AdapterError;
  * @class PostgresSQLAdapter
  *
  */
- 
+
 class MemoryAdapter {
-    constructor(options) {
+    constructor() {
         this.db = [];
         this.initializePublicMethods();
     }
-    
+
     get name() {
         return "memory";
     }
-    
+
     /*
      * Wrap class methods in Bluebird couroutines as we cannot define dynamic methods when
      * creating a class.
@@ -46,10 +53,10 @@ class MemoryAdapter {
         this.getLatestVersionForRef = Promise.coroutine(this.getLatestVersionForRef);
         this.createDatabaseConnection = Promise.coroutine(this.createDatabaseConnection);
         this.closeDatabaseConnection = Promise.method(this.closeDatabaseConnection);
-        
+
         return this;
     }
-    
+
     /*
      * Initialize the in memory db.
      *
@@ -61,7 +68,7 @@ class MemoryAdapter {
 
     *createDatabaseConnection() {
         this.db = [];
-        
+
         return this;
     }
 
@@ -73,13 +80,13 @@ class MemoryAdapter {
      * @return {this}
      *
      */
-    
+
     closeDatabaseConnection() {
         delete this.db;
-        
+
         return this;
     }
-    
+
     /*
      * Create a new event and store it in the database.
      *
@@ -94,38 +101,38 @@ class MemoryAdapter {
      * @return {Event}
      *
      */
-    
+
     *createEventForRef(eventName, refId, eventData, userId, currentVersion) {
         if(!currentVersion) {
-            currentVersion = yield this.getLatestVersionForRef(refId, connection);
+            currentVersion = yield this.getLatestVersionForRef(refId);
         }
 
-        let entry = {
+        const entry = {
             event: eventName,
             ref: refId,
             payload: eventData,
             initiated_by: userId,
             version: currentVersion + 1
         };
-        
-        var versionCheckFail = this.db.some(function(storedEntry) {
+
+        const versionCheckOk = !this.db.some(function(storedEntry) {
             return storedEntry.ref === entry.ref && storedEntry.version >= entry.version;
         });
-        
-        if(!versionCheckFail) {
+
+        if(versionCheckOk) {
             this.db.push(entry);
         }
         else {
-            let latestVersion = yield this.getLatestVersionForRef(refId);
+            const latestVersion = yield this.getLatestVersionForRef(refId);
             throw new AdapterError(409, "version conflict", {
                 currentVersion: currentVersion,
                 latestVersion: latestVersion
-            });                
+            });
         }
-        
+
         return entry;
     }
-    
+
     /*
      * Get events for a given ref (optionally) between two versions.
      *
@@ -133,20 +140,20 @@ class MemoryAdapter {
      *
      * @required {String}  refId
      * @optional {Number}  fromVersion
-     * @optional {Number}  toVersion     
+     * @optional {Number}  toVersion
      *
      * @return {[Row]}
      *
      */
-         
+
     *getEventsForRef(refId, fromVersion, toVersion) {
-        let results = this.db.filter(function(storedEntry) {
+        const results = this.db.filter(function(storedEntry) {
             return storedEntry.ref === refId && storedEntry.version >= fromVersion && storedEntry.version <= toVersion;
         });
 
         return results;
     }
-        
+
     /*
      * Get the highest version number for a given ref. If no events exists for a ref, will return 0.
      *
@@ -157,18 +164,17 @@ class MemoryAdapter {
      * @return {Number}
      *
      */
-         
     *getLatestVersionForRef(refId) {
-        let results = this.db.filter(function(storedEntry) {
-            return storedEntry.ref === refId && storedEntry.version >= fromVersion && storedEntry.version <= toVersion;
+        const results = this.db.filter(function(storedEntry) {
+            return storedEntry.ref === refId;
         });
-        
+
         results.sort(function(a, b) {
             return b.version - a.version;
         });
 
         return results[0] ? results[0].version : 0;
-    }  
+    }
 }
 
 exports = module.exports = MemoryAdapter;
